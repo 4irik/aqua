@@ -15,15 +15,18 @@
 
 ## Установка
 
-```sh
-git clone <repo-url> && cd aqua_voice
-go install .        # бинарник попадёт в ~/go/bin — он должен быть в PATH
+### Go
+
+```bash
+go install github.com/4irik/aqua@latest
 ```
 
-Либо собрать локальный бинарник без установки:
+### Сборка (требуется Go 1.26+)
 
-```sh
-go build -o aqua .
+```bash
+git clone https://github.com/4irik/aqua.git
+cd aqua
+go build
 ```
 
 ## Получение API-ключей

@@ -13,17 +13,20 @@ the clipboard and stdout.
 - `wl-copy` (package `wl-clipboard`) — clipboard, optional (`--no-clipboard`)
 - Go toolchain — build only
 
-## Install
+## Installation
 
-```sh
-git clone <repo-url> && cd aqua_voice
-go install .        # binary lands in ~/go/bin — make sure it is in PATH
+### Go
+
+```bash
+go install github.com/4irik/aqua@latest
 ```
 
-Or build a local binary without installing:
+### Build (requires Go 1.26+)
 
-```sh
-go build -o aqua .
+```bash
+git clone https://github.com/4irik/aqua.git
+cd aqua
+go build
 ```
 
 ## API keys
