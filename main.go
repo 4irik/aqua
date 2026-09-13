@@ -37,9 +37,10 @@ func main() {
 	lang := flag.String("language", "auto", "language code passed to the API")
 	model := flag.String("model", "avalon-v1.5", "Avalon model (transcription mode)")
 	noClip := flag.Bool("no-clipboard", false, "print to stdout only")
+	verbose := flag.Bool("verbose", false, "report take stats and show a spinner while waiting")
 	flag.Parse()
 
-	if err := run(*dictate, *lang, *model, *noClip); err != nil {
+	if err := run(*dictate, *lang, *model, *noClip, *verbose); err != nil {
 		if !errors.Is(err, errEmpty) {
 			fmt.Fprintln(os.Stderr, "aqua:", err)
 			os.Exit(1)
@@ -47,20 +48,28 @@ func main() {
 	}
 }
 
-func run(dictate bool, lang, model string, noClip bool) error {
+func run(dictate bool, lang, model string, noClip, verbose bool) error {
 	key, err := apiKey(dictate)
 	if err != nil {
 		return err
 	}
-	audio, err := record()
+	audio, dur, err := record()
 	if err != nil {
 		return err
+	}
+	if verbose {
+		fmt.Fprintf(os.Stderr, "Recording done: %.1fs, %s WAV\n", dur.Seconds(), humanSize(len(audio)))
 	}
 	base := os.Getenv("AQUA_BASE_URL")
 	if base == "" {
 		base = defaultBase
 	}
+	stopSpin := func() {}
+	if verbose {
+		stopSpin = startSpinner()
+	}
 	text, err := transcribe(&http.Client{Timeout: 220 * time.Second}, base, key, audio, dictate, model, lang)
+	stopSpin()
 	if err != nil {
 		return err
 	}
@@ -89,7 +98,7 @@ func apiKey(dictate bool) (string, error) {
 	return "", errors.New("AQUAVOICE_AVALON_KEY is not set (need an Avalon key with transcription scope; AQUAVOICE_API_KEY works as fallback)")
 }
 
-func record() ([]byte, error) {
+func record() ([]byte, time.Duration, error) {
 	var argv []string
 	for _, c := range recorders {
 		if path, err := exec.LookPath(c[0]); err == nil {
@@ -98,11 +107,11 @@ func record() ([]byte, error) {
 		}
 	}
 	if argv == nil {
-		return nil, errors.New("no recorder found: install pulseaudio-utils (parecord) or ffmpeg")
+		return nil, 0, errors.New("no recorder found: install pulseaudio-utils (parecord) or ffmpeg")
 	}
 	f, err := os.CreateTemp("", "aqua-*.wav")
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	tmp := f.Name()
 	f.Close()
@@ -116,8 +125,9 @@ func record() ([]byte, error) {
 	cmd := exec.Command(argv[0], argv[1:]...)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
+	start := time.Now()
 	fmt.Fprintln(os.Stderr, "Recording… Enter/Ctrl-C to stop")
 
 	enter := make(chan struct{})
@@ -132,17 +142,18 @@ func record() ([]byte, error) {
 	case <-enter:
 	case <-sig:
 	}
+	dur := time.Since(start)
 	signal.Stop(sig)
 	cmd.Process.Signal(os.Interrupt) // let the recorder finalize the WAV header
 	cmd.Wait()                       // exit status is irrelevant; the file tells the truth
 	audio, err := os.ReadFile(tmp)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if len(audio) < emptyTake {
-		return nil, errEmpty
+		return nil, 0, errEmpty
 	}
-	return audio, nil
+	return audio, dur, nil
 }
 
 func transcribe(client *http.Client, base, key string, audio []byte, dictate bool, model, lang string) (string, error) {
@@ -255,6 +266,36 @@ func parseText(body []byte) (string, error) {
 		return "", fmt.Errorf("bad response: %w", err)
 	}
 	return out.Text, nil
+}
+
+// startSpinner animates a waiting indicator on stderr; the returned func
+// stops it and clears the line.
+func startSpinner() func() {
+	done, finished := make(chan struct{}), make(chan struct{})
+	go func() {
+		defer close(finished)
+		frames := `-\|/`
+		t := time.NewTicker(100 * time.Millisecond)
+		defer t.Stop()
+		start := time.Now()
+		for i := 0; ; i++ {
+			select {
+			case <-done:
+				fmt.Fprint(os.Stderr, "\r\033[K")
+				return
+			case <-t.C:
+				fmt.Fprintf(os.Stderr, "\r%c Waiting for API… %.0fs", frames[i%len(frames)], time.Since(start).Seconds())
+			}
+		}
+	}()
+	return func() { close(done); <-finished }
+}
+
+func humanSize(n int) string {
+	if n < 1024 {
+		return fmt.Sprintf("%d B", n)
+	}
+	return fmt.Sprintf("%.0f KB", float64(n)/1024)
 }
 
 func copyToClipboard(text string) error {

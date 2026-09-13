@@ -76,6 +76,7 @@ silently with code 0.
 | `--language` | `auto` | Language code passed to the API |
 | `--model` | `avalon-v1.5` | Avalon model (transcription mode) |
 | `--no-clipboard` | off | Stdout only |
+| `--verbose` | off | After stopping: take duration and WAV size; while waiting for the API: a stderr spinner |
 
 ## How it works
 

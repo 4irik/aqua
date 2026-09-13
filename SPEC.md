@@ -17,6 +17,7 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
 | `--language` | `auto` | Язык распознавания, передаётся в API как есть |
 | `--model` | `avalon-v1.5` | Модель Avalon (только режим транскрипции) |
 | `--no-clipboard` | выкл. | Не трогать буфер обмена, только stdout |
+| `--verbose` | выкл. | После остановки — длительность дубля и размер WAV; во время ожидания API — спиннер на stderr |
 
 ## Режимы и endpoints
 
