@@ -87,6 +87,27 @@ aqua --no-clipboard   # только stdout
    `/audio/transcription-jobs/{id}/result` до готовности результата.
 5. `text` из ответа → stdout + буфер обмена.
 
+## Разработка
+
+```sh
+go test ./...       # unit-тесты на httptest-моке
+```
+
+Посмотреть, что уходит на сервер:
+
+- `scripts/dump-server.py` — локальный echo-сервер, печатает каждый запрос
+  целиком: все заголовки (**включая ключ Authorization** — это отладочный
+  инструмент) и каждое multipart-поле. Направьте на него `aqua` через
+  переменную `AQUA_BASE_URL`:
+
+  ```sh
+  python3 scripts/dump-server.py &
+  AQUA_BASE_URL=http://127.0.0.1:8799 AQUAVOICE_AVALON_KEY=x ./aqua
+  ```
+
+- Против настоящего API: `GODEBUG=http2debug=2 ./aqua` дампит HTTP/2-фреймы —
+  видны заголовки и размеры DATA-фреймов, но не зашифрованное тело.
+
 ## Чего здесь нет (out of scope)
 
 Непрерывный режим с детектором тишины, push-to-talk через демон горячих клавиш,

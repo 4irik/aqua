@@ -87,6 +87,26 @@ silently with code 0.
    `/audio/transcription-jobs/{id}/result` until the result is ready.
 5. `text` from the response → stdout + clipboard.
 
+## Development
+
+```sh
+go test ./...       # httptest-mocked unit tests
+```
+
+Inspecting the wire request:
+
+- `scripts/dump-server.py` is a local echo server that prints every request in
+  full — all headers (**including the Authorization key**, it is a debug tool)
+  and each multipart field. Point `aqua` at it via the `AQUA_BASE_URL` env var:
+
+  ```sh
+  python3 scripts/dump-server.py &
+  AQUA_BASE_URL=http://127.0.0.1:8799 AQUAVOICE_AVALON_KEY=x ./aqua
+  ```
+
+- Against the real API, `GODEBUG=http2debug=2 ./aqua` dumps the HTTP/2 frames:
+  headers and DATA frame sizes, but not the TLS-encrypted body.
+
 ## Not included (out of scope)
 
 Continuous mode with silence detection, push-to-talk via a hotkey daemon,

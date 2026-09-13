@@ -68,7 +68,9 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
 
 ```
 go.mod
-main.go        # вся утилита, ~200 строк оценочно
+main.go                    # вся утилита
+main_test.go               # httptest-мок: оба режима + 504-polling
+scripts/dump-server.py     # echo-дампер запросов; целиться через AQUA_BASE_URL
 ```
 
 Только stdlib: `flag`, `os/exec`, `net/http`, `mime/multipart`, `encoding/json`,
