@@ -41,17 +41,18 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
 
 ## Поток работы
 
-1. Проверить ключ (см. выше) и наличие `parec`. Ошибка — сразу на stderr, exit 1.
-2. Запустить запись: `parec --file-format=wav` с stdout в pipe. На stderr
+1. Проверить ключ (см. выше) и наличие рекордера. Ошибка — сразу на stderr, exit 1.
+2. Запустить запись: `parecord <tmp.wav>` во временный файл. На stderr
    печатать индикатор (`Recording… Enter/Ctrl-C to stop`).
-3. Stop-сигнал — Enter или SIGINT. При остановке: послать SIGINT процессу `parec`
-   (он корректно допишет WAV-заголовок), дочитать pipe до EOF.
+3. Stop-сигнал — Enter или SIGINT. При остановке: послать SIGINT процессу
+   рекордера (он корректно допишет WAV-заголовок), дождаться выхода, прочитать
+   файл.
 4. Отправить записанный WAV multipart-запросом на endpoint текущего режима.
 5. Распарсить `text` из ответа. Напечатать в stdout. Если не `--no-clipboard` —
    скопировать через `wl-copy`.
 
-`parec` отсутствует → попробовать `parecord -d <default-source>`, затем
-`ffmpeg -f pulse -i default`; ни одного нет → ошибка с подсказкой.
+`parecord` отсутствует → `ffmpeg -f pulse -i default -y <tmp.wav>`; ни одного
+нет → ошибка с подсказкой.
 
 ## Краевые случаи
 
