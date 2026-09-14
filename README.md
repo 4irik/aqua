@@ -39,11 +39,11 @@ There are two key types; which one you need depends on the mode:
 
 | Mode | Key type in dashboard | Scope | Env var |
 |---|---|---|---|
-| `aqua` (default) | **Avalon transcription** | `transcription` | `AQUAVOICE_AVALON_KEY` |
-| `aqua --dictate` | **Aqua data** | `write` | `AQUAVOICE_API_KEY` |
+| `aqua` (default) | **Aqua data** | `write` | `AQUAVOICE_API_KEY` |
+| `aqua --raw` | **Avalon transcription** | `transcription` | `AQUAVOICE_AVALON_KEY` |
 
-`AQUAVOICE_API_KEY` also works as a fallback for transcription mode if the key
-has the right scope.
+`AQUAVOICE_API_KEY` also works as a fallback for `--raw` if the key has the
+right scope.
 
 ```sh
 export AQUAVOICE_AVALON_KEY=...
@@ -53,12 +53,17 @@ export AQUAVOICE_API_KEY=...
 ## Usage
 
 ```sh
-aqua                  # start recording, Enter or Ctrl-C to stop → transcript
-aqua --dictate        # same, but text is formatted (account dictionary,
-                      # replacements and instructions are applied)
+aqua                  # start recording, Enter or Ctrl-C to stop → formatted
+                      # dictation (account dictionary, replacements and
+                      # instructions are applied)
+aqua --raw            # raw transcription instead (needs an Avalon key)
 aqua --language=ru    # force language (default: auto)
 aqua --no-clipboard   # print to stdout only
 ```
+
+Dictation mode stores each take as a session in your Aqua account history
+(disable it with privacy mode in the account settings). With `--verbose` the
+session id is printed to stderr.
 
 The text is always printed to stdout; with `wl-copy` present it is also copied
 to the clipboard. An empty take (stopped before the mic produced audio) exits
@@ -72,7 +77,7 @@ silently with code 0.
 
 | Flag | Default | Purpose |
 |---|---|---|
-| `--dictate` | off | Formatted dictation via `/dictations` instead of raw transcription |
+| `--raw` | off | Raw transcription via `/audio/transcriptions` instead of dictation (needs an Avalon key) |
 | `--language` | `auto` | Language code passed to the API |
 | `--model` | `avalon-v1.5` | Avalon model (transcription mode) |
 | `--no-clipboard` | off | Stdout only |

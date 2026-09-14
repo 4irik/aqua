@@ -33,14 +33,14 @@ var recorders = [][]string{
 }
 
 func main() {
-	dictate := flag.Bool("dictate", false, "formatted dictation via /dictations (needs a write-scope key)")
+	raw := flag.Bool("raw", false, "raw transcription via /audio/transcriptions (needs an Avalon key)")
 	lang := flag.String("language", "auto", "language code passed to the API")
 	model := flag.String("model", "avalon-v1.5", "Avalon model (transcription mode)")
 	noClip := flag.Bool("no-clipboard", false, "print to stdout only")
 	verbose := flag.Bool("verbose", false, "report take stats and show a spinner while waiting")
 	flag.Parse()
 
-	if err := run(*dictate, *lang, *model, *noClip, *verbose); err != nil {
+	if err := run(!*raw, *lang, *model, *noClip, *verbose); err != nil {
 		if !errors.Is(err, errEmpty) {
 			fmt.Fprintln(os.Stderr, "aqua:", err)
 			os.Exit(1)
@@ -68,14 +68,17 @@ func run(dictate bool, lang, model string, noClip, verbose bool) error {
 	if verbose {
 		stopSpin = startSpinner()
 	}
-	text, err := transcribe(&http.Client{Timeout: 220 * time.Second}, base, key, audio, dictate, model, lang)
+	res, err := transcribe(&http.Client{Timeout: 220 * time.Second}, base, key, audio, dictate, model, lang)
 	stopSpin()
 	if err != nil {
 		return err
 	}
-	fmt.Println(text)
+	fmt.Println(res.Text)
+	if verbose && res.SessionID != "" {
+		fmt.Fprintln(os.Stderr, "session:", res.SessionID)
+	}
 	if !noClip {
-		if err := copyToClipboard(text); err != nil {
+		if err := copyToClipboard(res.Text); err != nil {
 			fmt.Fprintln(os.Stderr, "aqua: clipboard:", err)
 		}
 	}
@@ -83,19 +86,19 @@ func run(dictate bool, lang, model string, noClip, verbose bool) error {
 }
 
 func apiKey(dictate bool) (string, error) {
-	if dictate {
+	if !dictate {
+		if k := os.Getenv("AQUAVOICE_AVALON_KEY"); k != "" {
+			return k, nil
+		}
 		if k := os.Getenv("AQUAVOICE_API_KEY"); k != "" {
 			return k, nil
 		}
-		return "", errors.New("AQUAVOICE_API_KEY is not set (--dictate needs an Aqua data key with write scope)")
-	}
-	if k := os.Getenv("AQUAVOICE_AVALON_KEY"); k != "" {
-		return k, nil
+		return "", errors.New("AQUAVOICE_AVALON_KEY is not set (--raw needs an Avalon key with transcription scope; AQUAVOICE_API_KEY works as fallback)")
 	}
 	if k := os.Getenv("AQUAVOICE_API_KEY"); k != "" {
 		return k, nil
 	}
-	return "", errors.New("AQUAVOICE_AVALON_KEY is not set (need an Avalon key with transcription scope; AQUAVOICE_API_KEY works as fallback)")
+	return "", errors.New("AQUAVOICE_API_KEY is not set (dictate mode needs an Aqua data key with write scope)")
 }
 
 func record() ([]byte, time.Duration, error) {
@@ -156,7 +159,12 @@ func record() ([]byte, time.Duration, error) {
 	return audio, dur, nil
 }
 
-func transcribe(client *http.Client, base, key string, audio []byte, dictate bool, model, lang string) (string, error) {
+type result struct {
+	Text      string
+	SessionID string // dictate mode only
+}
+
+func transcribe(client *http.Client, base, key string, audio []byte, dictate bool, model, lang string) (result, error) {
 	field, url := "file", base+"/audio/transcriptions"
 	if dictate {
 		field, url = "audio", base+"/dictations"
@@ -165,7 +173,7 @@ func transcribe(client *http.Client, base, key string, audio []byte, dictate boo
 	w := multipart.NewWriter(&buf)
 	fw, err := w.CreateFormFile(field, "take.wav")
 	if err != nil {
-		return "", err
+		return result{}, err
 	}
 	fw.Write(audio)
 	if dictate {
@@ -199,7 +207,7 @@ func transcribe(client *http.Client, base, key string, audio []byte, dictate boo
 		resp, err = client.Do(newReq()) // closed connection mid-dictation: replay with same key
 	}
 	if err != nil {
-		return "", err
+		return result{}, err
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
@@ -218,24 +226,24 @@ func transcribe(client *http.Client, base, key string, audio []byte, dictate boo
 		return transcribeResp(client.Do(newReq()))
 	}
 	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return result{}, fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
-	return parseText(body)
+	return parseResult(body)
 }
 
-func transcribeResp(resp *http.Response, err error) (string, error) {
+func transcribeResp(resp *http.Response, err error) (result, error) {
 	if err != nil {
-		return "", err
+		return result{}, err
 	}
 	body, _ := io.ReadAll(resp.Body)
 	resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return "", fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
+		return result{}, fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
 	}
-	return parseText(body)
+	return parseResult(body)
 }
 
-func pollJob(client *http.Client, base, key, jobID string) (string, error) {
+func pollJob(client *http.Client, base, key, jobID string) (result, error) {
 	for i := 0; i < 120; i++ {
 		fmt.Fprintln(os.Stderr, "Still processing…")
 		time.Sleep(time.Second)
@@ -243,7 +251,7 @@ func pollJob(client *http.Client, base, key, jobID string) (string, error) {
 		req.Header.Set("Authorization", "Bearer "+key)
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", err
+			return result{}, err
 		}
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
@@ -251,21 +259,22 @@ func pollJob(client *http.Client, base, key, jobID string) (string, error) {
 			continue
 		}
 		if resp.StatusCode/100 != 2 {
-			return "", fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
+			return result{}, fmt.Errorf("API %s: %s", resp.Status, strings.TrimSpace(string(body)))
 		}
-		return parseText(body)
+		return parseResult(body)
 	}
-	return "", errors.New("job still not complete after 2 minutes")
+	return result{}, errors.New("job still not complete after 2 minutes")
 }
 
-func parseText(body []byte) (string, error) {
+func parseResult(body []byte) (result, error) {
 	var out struct {
-		Text string `json:"text"`
+		Text      string `json:"text"`
+		SessionID string `json:"session_id"`
 	}
 	if err := json.Unmarshal(body, &out); err != nil {
-		return "", fmt.Errorf("bad response: %w", err)
+		return result{}, fmt.Errorf("bad response: %w", err)
 	}
-	return out.Text, nil
+	return result{Text: out.Text, SessionID: out.SessionID}, nil
 }
 
 // startSpinner animates a waiting indicator on stderr; the returned func

@@ -39,11 +39,11 @@ go build
 
 | Режим | Тип ключа в дашборде | Scope | Переменная |
 |---|---|---|---|
-| `aqua` (по умолчанию) | **Avalon transcription** | `transcription` | `AQUAVOICE_AVALON_KEY` |
-| `aqua --dictate` | **Aqua data** | `write` | `AQUAVOICE_API_KEY` |
+| `aqua` (по умолчанию) | **Aqua data** | `write` | `AQUAVOICE_API_KEY` |
+| `aqua --raw` | **Avalon transcription** | `transcription` | `AQUAVOICE_AVALON_KEY` |
 
-`AQUAVOICE_API_KEY` также работает как fallback для режима транскрипции, если у
-ключа есть нужный scope.
+`AQUAVOICE_API_KEY` также работает как fallback для `--raw`, если у ключа есть
+нужный scope.
 
 ```sh
 export AQUAVOICE_AVALON_KEY=...
@@ -53,12 +53,17 @@ export AQUAVOICE_API_KEY=...
 ## Использование
 
 ```sh
-aqua                  # начать запись, Enter или Ctrl-C — стоп → расшифровка
-aqua --dictate        # то же, но текст отформатирован (применяются словарь,
-                      # замены и инструкции из аккаунта)
+aqua                  # начать запись, Enter или Ctrl-C — стоп → отформатированная
+                      # диктовка (применяются словарь, замены и инструкции
+                      # из аккаунта)
+aqua --raw            # сырая расшифровка вместо диктовки (нужен Avalon-ключ)
 aqua --language=ru    # явно задать язык (по умолчанию: auto)
 aqua --no-clipboard   # только stdout
 ```
+
+Режим диктовки сохраняет каждый дубль сессией в истории аккаунта Aqua
+(отключается privacy mode в настройках аккаунта). С `--verbose` id сессии
+печатается на stderr.
 
 Текст всегда печатается в stdout; при наличии `wl-copy` также копируется в буфер
 обмена. Пустой дубль (остановлен до того, как микрофон дал звук) завершается
@@ -72,7 +77,7 @@ aqua --no-clipboard   # только stdout
 
 | Флаг | По умолчанию | Назначение |
 |---|---|---|
-| `--dictate` | выкл. | Форматированная диктовка через `/dictations` вместо сырой транскрипции |
+| `--raw` | выкл. | Сырая транскрипция через `/audio/transcriptions` вместо диктовки (нужен Avalon-ключ) |
 | `--language` | `auto` | Код языка, передаётся в API как есть |
 | `--model` | `avalon-v1.5` | Модель Avalon (режим транскрипции) |
 | `--no-clipboard` | выкл. | Только stdout |

@@ -8,14 +8,14 @@ CLI-утилита: записывает один дубль с микрофон
 ## CLI
 
 ```
-aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
+aqua [--raw] [--language CODE] [--model ID] [--no-clipboard] [--verbose]
 ```
 
 | Флаг | Значение по умолчанию | Назначение |
 |---|---|---|
-| `--dictate` | выкл. | Режим диктовки (форматированный текст) вместо сырой транскрипции |
+| `--raw` | выкл. | Сырая транскрипция Avalon вместо диктовки (нужен ключ со scope `transcription`) |
 | `--language` | `auto` | Язык распознавания, передаётся в API как есть |
-| `--model` | `avalon-v1.5` | Модель Avalon (только режим транскрипции) |
+| `--model` | `avalon-v1.5` | Модель Avalon (только `--raw`) |
 | `--no-clipboard` | выкл. | Не трогать буфер обмена, только stdout |
 | `--verbose` | выкл. | После остановки — длительность дубля и размер WAV; во время ожидания API — спиннер на stderr |
 
@@ -23,8 +23,8 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
 
 | Режим | Endpoint | Scope ключа | Ответ |
 |---|---|---|---|
-| Транскрипция (default) | `POST https://api.aquavoice.com/v1/audio/transcriptions` | `transcription` | `{ "text": "..." }` |
-| Диктовка (`--dictate`) | `POST https://api.aquavoice.com/v1/dictations` | `write` | `{ "text": "...", "raw_text": "..." }` — берём `text` |
+| Диктовка (default) | `POST https://api.aquavoice.com/v1/dictations` | `write` | `{ "text": "...", "session_id": "...", "raw_text": "..." }` — берём `text` |
+| Транскрипция (`--raw`) | `POST https://api.aquavoice.com/v1/audio/transcriptions` | `transcription` | `{ "text": "..." }` |
 
 Оба вызова — `multipart/form-data`, авторизация `Authorization: Bearer <key>`.
 
@@ -33,9 +33,11 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
 
 ## Ключи
 
-- `AQUAVOICE_API_KEY` — ключ типа «Aqua data» (scope `write`), для `--dictate`.
-- `AQUAVOICE_AVALON_KEY` — ключ типа «Avalon transcription» (scope `transcription`),
-  для режима по умолчанию. Если не задана, используется `AQUAVOICE_API_KEY`.
+- `AQUAVOICE_API_KEY` — ключ типа «Aqua data» (scope `write`), для режима по
+  умолчанию.
+- `AQUAVOICE_AVALON_KEY` — ключ типа «Avalon transcription» (scope
+  `transcription`), для `--raw`. Если не задана, используется
+  `AQUAVOICE_API_KEY`.
 
 Отсутствие нужного ключа — ошибка на старте, до начала записи: сообщение называет
 переменную и требуемый scope, exit code 1.
@@ -49,8 +51,12 @@ aqua [--dictate] [--language CODE] [--model ID] [--no-clipboard]
    рекордера (он корректно допишет WAV-заголовок), дождаться выхода, прочитать
    файл.
 4. Отправить записанный WAV multipart-запросом на endpoint текущего режима.
-5. Распарсить `text` из ответа. Напечатать в stdout. Если не `--no-clipboard` —
+5. Распарсить `text` из ответа. Напечатать в stdout. При `--verbose` и наличии
+   `session_id` в ответе — напечатать его на stderr. Если не `--no-clipboard` —
    скопировать через `wl-copy`.
+
+Режим диктовки сохраняет каждый дубль сессией в истории аккаунта Aqua
+(отключается privacy mode в настройках аккаунта).
 
 `parecord` отсутствует → `ffmpeg -f pulse -i default -y <tmp.wav>`; ни одного
 нет → ошибка с подсказкой.

@@ -9,7 +9,7 @@ import (
 
 func wav() []byte { return append([]byte("RIFF"), make([]byte, 300)...) }
 
-func TestTranscribe(t *testing.T) {
+func TestRaw(t *testing.T) {
 	var gotAuth, gotModel, gotLang, gotFile string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotAuth = r.Header.Get("Authorization")
@@ -26,9 +26,9 @@ func TestTranscribe(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	text, err := transcribe(srv.Client(), srv.URL, "k", wav(), false, "avalon-v1.5", "auto")
-	if err != nil || text != "hello aqua" {
-		t.Fatalf("text=%q err=%v", text, err)
+	res, err := transcribe(srv.Client(), srv.URL, "k", wav(), false, "avalon-v1.5", "auto")
+	if err != nil || res.Text != "hello aqua" || res.SessionID != "" {
+		t.Fatalf("res=%+v err=%v", res, err)
 	}
 	if gotAuth != "Bearer k" || gotModel != "avalon-v1.5" || gotLang != "auto" || gotFile != "RIFF" {
 		t.Fatalf("auth=%q model=%q lang=%q file=%q", gotAuth, gotModel, gotLang, gotFile)
@@ -44,13 +44,13 @@ func TestDictate(t *testing.T) {
 		gotOp = r.FormValue("operation")
 		_, _, err := r.FormFile("audio")
 		sawAudio = err == nil
-		json.NewEncoder(w).Encode(map[string]string{"text": "Hello, Aqua!"})
+		json.NewEncoder(w).Encode(map[string]string{"text": "Hello, Aqua!", "session_id": "ses_1"})
 	}))
 	defer srv.Close()
 
-	text, err := transcribe(srv.Client(), srv.URL, "k", wav(), true, "", "ru")
-	if err != nil || text != "Hello, Aqua!" {
-		t.Fatalf("text=%q err=%v", text, err)
+	res, err := transcribe(srv.Client(), srv.URL, "k", wav(), true, "", "ru")
+	if err != nil || res.Text != "Hello, Aqua!" || res.SessionID != "ses_1" {
+		t.Fatalf("res=%+v err=%v", res, err)
 	}
 	if gotOp != "dictate" || !sawAudio || gotIdem == "" {
 		t.Fatalf("op=%q audio=%v idem=%q", gotOp, sawAudio, gotIdem)
@@ -72,8 +72,8 @@ func Test504PollsJob(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	text, err := transcribe(srv.Client(), srv.URL, "k", wav(), false, "m", "auto")
-	if err != nil || text != "late text" || !polled {
-		t.Fatalf("text=%q polled=%v err=%v", text, polled, err)
+	res, err := transcribe(srv.Client(), srv.URL, "k", wav(), false, "m", "auto")
+	if err != nil || res.Text != "late text" || !polled {
+		t.Fatalf("res=%+v polled=%v err=%v", res, polled, err)
 	}
 }
